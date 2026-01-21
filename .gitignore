@@ -1,0 +1,51 @@
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.apk
+*.ap_
+*.aab
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE - IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Build files
+build/
+dist/
+*.class
+
+# Logs
+*.log
+uploads/
+pdfs/
+
+# OS
+.DS_Store
+Thumbs.db

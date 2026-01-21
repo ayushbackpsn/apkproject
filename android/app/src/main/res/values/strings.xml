@@ -1,0 +1,39 @@
+<resources>
+    <string name="app_name">Shoe Catalog</string>
+    <string name="brands_title">Select Brand</string>
+    <string name="products_title">Select Products</string>
+    <string name="generate_pdf">Generate PDF</string>
+    <string name="share_pdf">Share PDF</string>
+    <string name="loading">Loading...</string>
+    <string name="error_loading">Error loading data</string>
+    <string name="no_products_selected">Please select at least one product</string>
+    <string name="pdf_generating">Generating PDF...</string>
+    <string name="pdf_generated">PDF generated successfully</string>
+    <string name="pdf_error">Error generating PDF</string>
+    
+    <!-- Add Brand Screen -->
+    <string name="add_brand_title">Add Brand</string>
+    <string name="brand_name_hint">Brand Name</string>
+    <string name="save_brand">Save Brand</string>
+    <string name="brand_name_required">Brand name is required</string>
+    <string name="brand_saved_successfully">Brand saved successfully</string>
+    <string name="error_saving_brand">Error saving brand</string>
+    
+    <!-- Add Product Screen -->
+    <string name="add_product_title">Add Product</string>
+    <string name="product_name_hint">Product Name</string>
+    <string name="add_brand_short">+ Add</string>
+    <string name="pick_from_gallery">Gallery</string>
+    <string name="capture_image">Camera</string>
+    <string name="save_product">Save Product</string>
+    <string name="product_name_required">Product name is required</string>
+    <string name="product_image_required">Please select a product image</string>
+    <string name="product_saved_successfully">Product saved successfully</string>
+    <string name="error_saving_product">Error saving product</string>
+    <string name="error_loading_brands">Error loading brands</string>
+    <string name="error_processing_image">Error processing image</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="product_image_preview">Product Image Preview</string>
+    <string name="saving">Saving...</string>
+</resources>
+

@@ -81,12 +81,13 @@ app.get('/brands', async (req, res) => {
 
 app.post('/brands', async (req, res) => {
   try {
-    const { brand_name } = req.body || {};
-    if (!brand_name || typeof brand_name !== 'string') {
-      return res.status(400).json({ error: 'brand_name is required' });
+    const { brand_name, name: nameFromBody } = req.body || {};
+    const raw = brand_name ?? nameFromBody;
+    if (!raw || typeof raw !== 'string') {
+      return res.status(400).json({ error: 'brand_name or name is required' });
     }
 
-    const name = String(brand_name).trim();
+    const name = String(raw).trim();
     if (!name) return res.status(400).json({ error: 'brand_name is required' });
 
     // Table uses "name" column; app expects brand_name in response

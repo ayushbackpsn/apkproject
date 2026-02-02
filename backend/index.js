@@ -253,8 +253,8 @@ app.post('/products', (req, res, next) => {
       },
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Product create error:', err.message);
+    res.status(500).json({ error: 'Server error', detail: err.message });
   }
 });
 

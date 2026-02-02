@@ -59,18 +59,18 @@ app.get('/brands', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('brands')
-      .select('id, brand_name')
-      .order('brand_name');
+      .select('id, name')
+      .order('name');
 
     if (error) {
       console.error('Brands fetch:', error.message);
       return res.status(500).json({ error: 'Failed to fetch brands' });
     }
 
-    // App expects _id and brand_name
+    // App expects _id and brand_name (table may use "name")
     const out = (data || []).map((b) => ({
       _id: b.id,
-      brand_name: b.brand_name,
+      brand_name: b.name || b.brand_name,
     }));
     res.json(out);
   } catch (err) {
@@ -89,38 +89,34 @@ app.post('/brands', async (req, res) => {
     const name = String(brand_name).trim();
     if (!name) return res.status(400).json({ error: 'brand_name is required' });
 
-    // Check if brand already exists (handles duplicate)
+    // Table uses "name" column; app expects brand_name in response
     const { data: existing } = await supabase
       .from('brands')
-      .select('id, brand_name')
-      .ilike('brand_name', name)
+      .select('id, name')
+      .ilike('name', name)
       .limit(1);
 
     if (existing && existing.length > 0) {
       return res.status(201).json({
         success: true,
-        brand: { _id: existing[0].id, brand_name: existing[0].brand_name },
+        brand: { _id: existing[0].id, brand_name: existing[0].name || existing[0].brand_name },
       });
     }
 
     const { data, error } = await supabase
       .from('brands')
-      .insert([{ brand_name: name }])
-      .select('id, brand_name')
+      .insert([{ name }])
+      .select('id, name')
       .single();
 
     if (error) {
-      console.error('Brand insert:', error.message, error.code);
-      return res.status(500).json({
-        error: 'Failed to create brand',
-        detail: error.message,
-        code: error.code,
-      });
+      console.error('Brand insert:', error.message);
+      return res.status(500).json({ error: 'Failed to create brand' });
     }
 
     res.status(201).json({
       success: true,
-      brand: { _id: data.id, brand_name: data.brand_name },
+      brand: { _id: data.id, brand_name: data.name || data.brand_name },
     });
   } catch (err) {
     console.error(err.message);
@@ -182,18 +178,18 @@ app.post('/products', (req, res, next) => {
       });
     }
 
-    // Find or create brand
+    // Find or create brand (table uses "name" column)
     const { data: existingBrands } = await supabase
       .from('brands')
       .select('id')
-      .ilike('brand_name', brandName)
+      .ilike('name', brandName)
       .limit(1);
 
     let brand = existingBrands?.[0];
     if (!brand) {
       const { data: newBrand, error: brandErr } = await supabase
         .from('brands')
-        .insert([{ brand_name: brandName }])
+        .insert([{ name: brandName }])
         .select('id')
         .single();
       if (brandErr) {

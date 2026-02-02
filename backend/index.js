@@ -89,6 +89,20 @@ app.post('/brands', async (req, res) => {
     const name = String(brand_name).trim();
     if (!name) return res.status(400).json({ error: 'brand_name is required' });
 
+    // Check if brand already exists (handles duplicate)
+    const { data: existing } = await supabase
+      .from('brands')
+      .select('id, brand_name')
+      .ilike('brand_name', name)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return res.status(201).json({
+        success: true,
+        brand: { _id: existing[0].id, brand_name: existing[0].brand_name },
+      });
+    }
+
     const { data, error } = await supabase
       .from('brands')
       .insert([{ brand_name: name }])
@@ -96,8 +110,12 @@ app.post('/brands', async (req, res) => {
       .single();
 
     if (error) {
-      console.error('Brand insert:', error.message);
-      return res.status(500).json({ error: 'Failed to create brand' });
+      console.error('Brand insert:', error.message, error.code);
+      return res.status(500).json({
+        error: 'Failed to create brand',
+        detail: error.message,
+        code: error.code,
+      });
     }
 
     res.status(201).json({

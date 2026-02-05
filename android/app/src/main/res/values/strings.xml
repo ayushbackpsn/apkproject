@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Shoe Catalog</string>
+    <string name="app_name">Payal Footwear</string>
     <string name="brands_title">Select Brand</string>
     <string name="products_title">Select Products</string>
     <string name="generate_pdf">Generate PDF</string>
@@ -35,5 +35,7 @@
     <string name="permission_denied">Permission denied</string>
     <string name="product_image_preview">Product Image Preview</string>
     <string name="saving">Saving...</string>
+    <string name="selected_images">Selected Images</string>
+    <string name="remove_image">Remove</string>
 </resources>
 

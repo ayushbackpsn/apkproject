@@ -16,9 +16,9 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
+            android:background="@color/white"
             app:title="@string/add_product_title"
-            app:titleTextColor="@color/white"
+            app:titleTextColor="@color/black"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
@@ -73,15 +73,28 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toBottomOf="@id/textInputLayoutBrandName" />
 
-        <ImageView
-            android:id="@+id/imageViewProductPreview"
+        <TextView
+            android:id="@+id/textViewSelectedImages"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:scaleType="centerCrop"
-            android:background="@android:color/darker_gray"
-            android:contentDescription="@string/product_image_preview"
+            android:text="@string/selected_images"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@id/textInputLayoutBrandName"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerViewSelectedImages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:minHeight="200dp"
+            android:maxHeight="400dp"
+            android:scrollbars="vertical"
+            app:layout_constraintTop_toBottomOf="@id/textViewSelectedImages"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
@@ -92,7 +105,7 @@
             android:layout_marginTop="16dp"
             android:orientation="horizontal"
             android:gravity="center"
-            app:layout_constraintTop_toBottomOf="@id/imageViewProductPreview"
+            app:layout_constraintTop_toBottomOf="@id/recyclerViewSelectedImages"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 

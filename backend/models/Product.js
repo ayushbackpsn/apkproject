@@ -18,7 +18,11 @@ const productSchema = new mongoose.Schema({
   },
   product_image: {
     type: String,
-    required: true // Path to the image file
+    required: false // Path to the image file (kept for backward compatibility)
+  },
+  product_images: {
+    type: [String],
+    default: [] // Array of paths to image files
   }
 }, {
   timestamps: true

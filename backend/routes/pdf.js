@@ -60,18 +60,18 @@ router.post('/generate', async (req, res) => {
       const imageAreaHeight = contentHeight * 0.70;
       const textAreaHeight = contentHeight * 0.30;
 
-      // Brand name at top
+      // Product name at top
       doc.fontSize(20)
          .fillColor('black')
-         .text('Brand: ' + product.brand_name, margin, margin + 20, {
+         .text('Name: ' + product.product_name, margin, margin + 20, {
            width: contentWidth,
            align: 'center'
          });
 
-      // Product name below brand
+      // Brand name below product name
       doc.fontSize(18)
          .fillColor('black')
-         .text('Name: ' + product.product_name, margin, margin + 60, {
+         .text('Brand: ' + product.brand_name, margin, margin + 60, {
            width: contentWidth,
            align: 'center'
          });

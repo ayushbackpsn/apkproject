@@ -72,6 +72,7 @@
                 android:maxLines="1"
                 android:textColor="#212121"
                 android:textColorHint="#616161"
+                android:background="@android:color/transparent"
                 android:popupBackground="@color/white" />
 
         </com.google.android.material.textfield.TextInputLayout>
@@ -87,28 +88,15 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toBottomOf="@id/textInputLayoutBrandName" />
 
-        <TextView
-            android:id="@+id/textViewSelectedImages"
+        <ImageView
+            android:id="@+id/imageViewProductPreview"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="200dp"
             android:layout_marginTop="24dp"
-            android:text="@string/selected_images"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:visibility="gone"
+            android:scaleType="centerCrop"
+            android:background="@android:color/darker_gray"
+            android:contentDescription="@string/product_image_preview"
             app:layout_constraintTop_toBottomOf="@id/textInputLayoutBrandName"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerViewSelectedImages"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="200dp"
-            android:maxHeight="400dp"
-            android:scrollbars="vertical"
-            app:layout_constraintTop_toBottomOf="@id/textViewSelectedImages"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
@@ -119,7 +107,7 @@
             android:layout_marginTop="16dp"
             android:orientation="horizontal"
             android:gravity="center"
-            app:layout_constraintTop_toBottomOf="@id/recyclerViewSelectedImages"
+            app:layout_constraintTop_toBottomOf="@id/imageViewProductPreview"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 

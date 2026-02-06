@@ -12,18 +12,15 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.textfield.TextInputEditText
-import com.shoecatalog.app.adapter.SelectedImageAdapter
 import com.shoecatalog.app.api.ApiService
 import com.shoecatalog.app.api.RetrofitClient
 import com.shoecatalog.app.data.model.Brand
@@ -44,18 +41,16 @@ class AddProductActivity : AppCompatActivity() {
     private lateinit var editTextProductName: TextInputEditText
     private lateinit var autoCompleteBrandName: AutoCompleteTextView
     private lateinit var buttonAddBrand: Button
-    private lateinit var recyclerViewSelectedImages: RecyclerView
-    private lateinit var textViewSelectedImages: TextView
+    private lateinit var imageViewProductPreview: ImageView
     private lateinit var buttonPickFromGallery: Button
     private lateinit var buttonCaptureImage: Button
     private lateinit var buttonSaveProduct: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var toolbar: Toolbar
     private lateinit var apiService: ApiService
-    private lateinit var selectedImageAdapter: SelectedImageAdapter
 
-    private val selectedImageUris = mutableListOf<Uri>()
-    private val imageFiles = mutableListOf<File>()
+    private var selectedImageUri: Uri? = null
+    private var imageFile: File? = null
     private val brands = mutableListOf<Brand>()
     private val REQUEST_CODE_GALLERY = 1001
     private val REQUEST_CODE_CAMERA = 1002
@@ -75,8 +70,7 @@ class AddProductActivity : AppCompatActivity() {
         editTextProductName = findViewById(R.id.editTextProductName)
         autoCompleteBrandName = findViewById(R.id.autoCompleteBrandName)
         buttonAddBrand = findViewById(R.id.buttonAddBrand)
-        recyclerViewSelectedImages = findViewById(R.id.recyclerViewSelectedImages)
-        textViewSelectedImages = findViewById(R.id.textViewSelectedImages)
+        imageViewProductPreview = findViewById(R.id.imageViewProductPreview)
         buttonPickFromGallery = findViewById(R.id.buttonPickFromGallery)
         buttonCaptureImage = findViewById(R.id.buttonCaptureImage)
         buttonSaveProduct = findViewById(R.id.buttonSaveProduct)
@@ -84,28 +78,6 @@ class AddProductActivity : AppCompatActivity() {
         toolbar = findViewById(R.id.toolbar)
 
         apiService = RetrofitClient.apiService
-        
-        // Setup RecyclerView for selected images
-        selectedImageAdapter = SelectedImageAdapter(selectedImageUris) { position ->
-            selectedImageUris.removeAt(position)
-            if (imageFiles.size > position) {
-                imageFiles.removeAt(position)
-            }
-            updateImageListVisibility()
-            selectedImageAdapter.notifyDataSetChanged()
-        }
-        recyclerViewSelectedImages.layoutManager = LinearLayoutManager(this)
-        recyclerViewSelectedImages.adapter = selectedImageAdapter
-    }
-    
-    private fun updateImageListVisibility() {
-        if (selectedImageUris.isNotEmpty()) {
-            textViewSelectedImages.visibility = View.VISIBLE
-            recyclerViewSelectedImages.visibility = View.VISIBLE
-        } else {
-            textViewSelectedImages.visibility = View.GONE
-            recyclerViewSelectedImages.visibility = View.GONE
-        }
     }
 
     private fun setupToolbar() {
@@ -203,21 +175,17 @@ class AddProductActivity : AppCompatActivity() {
     }
 
     private fun openGallery() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            type = "image/*"
-            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-        }
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
         startActivityForResult(intent, REQUEST_CODE_GALLERY)
     }
 
     private fun openCamera() {
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-        val imageFile = File(getExternalFilesDir(null), "product_image_${System.currentTimeMillis()}.jpg")
-        imageFiles.add(imageFile)
+        imageFile = File(getExternalFilesDir(null), "product_image_${System.currentTimeMillis()}.jpg")
         val uri = FileProvider.getUriForFile(
             this,
             "${packageName}.fileprovider",
-            imageFile
+            imageFile!!
         )
         intent.putExtra(MediaStore.EXTRA_OUTPUT, uri)
         startActivityForResult(intent, REQUEST_CODE_CAMERA)
@@ -229,32 +197,14 @@ class AddProductActivity : AppCompatActivity() {
         when (requestCode) {
             REQUEST_CODE_GALLERY -> {
                 if (resultCode == Activity.RESULT_OK && data != null) {
-                    if (data.clipData != null) {
-                        // Multiple images selected
-                        val clipData = data.clipData!!
-                        for (i in 0 until clipData.itemCount) {
-                            val uri = clipData.getItemAt(i).uri
-                            selectedImageUris.add(uri)
-                        }
-                    } else if (data.data != null) {
-                        // Single image selected
-                        selectedImageUris.add(data.data!!)
-                    }
-                    updateImageListVisibility()
-                    selectedImageAdapter.notifyDataSetChanged()
+                    selectedImageUri = data.data
+                    imageViewProductPreview.setImageURI(selectedImageUri)
                 }
             }
             REQUEST_CODE_CAMERA -> {
-                if (resultCode == Activity.RESULT_OK && imageFiles.isNotEmpty()) {
-                    val lastFile = imageFiles.last()
-                    val uri = FileProvider.getUriForFile(
-                        this,
-                        "${packageName}.fileprovider",
-                        lastFile
-                    )
-                    selectedImageUris.add(uri)
-                    updateImageListVisibility()
-                    selectedImageAdapter.notifyDataSetChanged()
+                if (resultCode == Activity.RESULT_OK && imageFile != null) {
+                    selectedImageUri = Uri.fromFile(imageFile)
+                    imageViewProductPreview.setImageURI(selectedImageUri)
                 }
             }
         }
@@ -318,7 +268,7 @@ class AddProductActivity : AppCompatActivity() {
         // Format brand name to UPPERCASE
         brandName = brandName.uppercase()
 
-        if (selectedImageUris.isEmpty()) {
+        if (selectedImageUri == null) {
             Toast.makeText(this, R.string.product_image_required, Toast.LENGTH_SHORT).show()
             return
         }
@@ -328,31 +278,26 @@ class AddProductActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Create image files for all selected images
-                val imageParts = mutableListOf<MultipartBody.Part>()
-                for (uri in selectedImageUris) {
-                    val imageFile = createImageFile(uri)
-                    if (imageFile == null) {
-                        withContext(Dispatchers.Main) {
-                            progressBar.visibility = View.GONE
-                            buttonSaveProduct.isEnabled = true
-                            Toast.makeText(
-                                this@AddProductActivity,
-                                R.string.error_processing_image,
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                        return@launch
+                val imageFile = createImageFile(selectedImageUri!!)
+                if (imageFile == null) {
+                    withContext(Dispatchers.Main) {
+                        progressBar.visibility = View.GONE
+                        buttonSaveProduct.isEnabled = true
+                        Toast.makeText(
+                            this@AddProductActivity,
+                            R.string.error_processing_image,
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                    val requestFile = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
-                    val imagePart = MultipartBody.Part.createFormData("product_images", imageFile.name, requestFile)
-                    imageParts.add(imagePart)
+                    return@launch
                 }
 
                 val productNameBody = productName.toRequestBody("text/plain".toMediaTypeOrNull())
                 val brandNameBody = brandName.toRequestBody("text/plain".toMediaTypeOrNull())
+                val requestFile = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
+                val imagePart = MultipartBody.Part.createFormData("product_image", imageFile.name, requestFile)
 
-                val response = apiService.uploadProduct(productNameBody, brandNameBody, imageParts)
+                val response = apiService.uploadProduct(productNameBody, brandNameBody, imagePart)
 
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE

@@ -155,7 +155,11 @@ app.get('/brands/:id/products', async (req, res) => {
 });
 
 app.post('/products', (req, res, next) => {
-  upload.single('product_image')(req, res, (err) => {
+  // Support both legacy single image field ("product_image") and new multi field ("product_images")
+  upload.fields([
+    { name: 'product_image', maxCount: 1 },
+    { name: 'product_images', maxCount: 10 },
+  ])(req, res, (err) => {
     if (err) {
       return res.status(400).json({
         error: err.message === 'Only image files allowed'
@@ -167,7 +171,12 @@ app.post('/products', (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    if (!req.file) {
+    const files = req.files || {};
+    const uploadFiles = Array.isArray(files.product_images) && files.product_images.length > 0
+      ? files.product_images
+      : (Array.isArray(files.product_image) ? files.product_image : []);
+
+    if (uploadFiles.length === 0) {
       return res.status(400).json({ error: 'Product image is required' });
     }
 
@@ -200,69 +209,78 @@ app.post('/products', (req, res, next) => {
       brand = newBrand;
     }
 
-    // Resize and upload image (fallback to original if Sharp fails)
-    if (!req.file.buffer || req.file.buffer.length === 0) {
-      return res.status(400).json({ error: 'Image file is empty or corrupted' });
-    }
-    const ext = path.extname(req.file.originalname) || '.jpg';
-    const fileName = uniqueFilename(ext.endsWith('.jpg') || ext.endsWith('.jpeg') ? ext : '.jpg');
+    // Upload each image and create a product row for it.
+    // (App expects a single product in response, so we return the last created product.)
+    let lastProduct = null;
+    for (const file of uploadFiles) {
+      // Resize and upload image (fallback to original if Sharp fails)
+      if (!file?.buffer || file.buffer.length === 0) {
+        return res.status(400).json({ error: 'Image file is empty or corrupted' });
+      }
 
-    let bufferToUpload = req.file.buffer;
-    try {
-      bufferToUpload = await sharp(req.file.buffer)
-        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 90 })
-        .toBuffer();
-    } catch (sharpErr) {
-      // Use original buffer if resize fails (e.g. corrupt or minimal JPEG)
-    }
+      const ext = path.extname(file.originalname) || '.jpg';
+      const fileName = uniqueFilename(ext.endsWith('.jpg') || ext.endsWith('.jpeg') ? ext : '.jpg');
 
-    const { error: uploadErr } = await supabase.storage
-      .from(IMAGES_BUCKET)
-      .upload(fileName, bufferToUpload, { contentType: 'image/jpeg', upsert: false });
+      let bufferToUpload = file.buffer;
+      try {
+        bufferToUpload = await sharp(file.buffer)
+          .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 90 })
+          .toBuffer();
+      } catch (sharpErr) {
+        // Use original buffer if resize fails
+      }
 
-    if (uploadErr) {
-      console.error('Image upload:', uploadErr.message);
-      return res.status(500).json({ error: 'Failed to upload image' });
-    }
+      const { error: uploadErr } = await supabase.storage
+        .from(IMAGES_BUCKET)
+        .upload(fileName, bufferToUpload, { contentType: 'image/jpeg', upsert: false });
 
-    const { data: urlData } = supabase.storage
-      .from(IMAGES_BUCKET)
-      .getPublicUrl(fileName);
-    const imageUrl = urlData.publicUrl;
+      if (uploadErr) {
+        console.error('Image upload:', uploadErr.message);
+        return res.status(500).json({ error: 'Failed to upload image' });
+      }
 
-    // Create product (Supabase table has "name" column for product name)
-    const productRow = {
-      name: productName || 'Untitled',
-      brand_name: brandName,
-      brand_id: brand.id,
-      product_image: imageUrl,
-    };
-    const { data: product, error: productErr } = await supabase
-      .from('products')
-      .insert([productRow])
-      .select('id, name, product_name, brand_name, product_image')
-      .single();
+      const { data: urlData } = supabase.storage
+        .from(IMAGES_BUCKET)
+        .getPublicUrl(fileName);
+      const imageUrl = urlData.publicUrl;
 
-    if (productErr) {
-      console.error('Product insert:', productErr.message);
-      await supabase.storage.from(IMAGES_BUCKET).remove([fileName]);
-      return res.status(500).json({ error: 'Failed to create product', detail: productErr.message });
-    }
+      // Create product (Supabase table has "name" column for product name)
+      const productRow = {
+        name: productName || 'Untitled',
+        brand_name: brandName,
+        brand_id: brand.id,
+        product_image: imageUrl,
+      };
 
-    // Ensure product_image is saved (some schemas need explicit update)
-    if (!product.product_image && imageUrl) {
-      await supabase.from('products').update({ product_image: imageUrl }).eq('id', product.id);
-      product.product_image = imageUrl;
+      const { data: product, error: productErr } = await supabase
+        .from('products')
+        .insert([productRow])
+        .select('id, name, product_name, brand_name, product_image')
+        .single();
+
+      if (productErr) {
+        console.error('Product insert:', productErr.message);
+        await supabase.storage.from(IMAGES_BUCKET).remove([fileName]);
+        return res.status(500).json({ error: 'Failed to create product', detail: productErr.message });
+      }
+
+      // Ensure product_image is saved (some schemas need explicit update)
+      if (!product.product_image && imageUrl) {
+        await supabase.from('products').update({ product_image: imageUrl }).eq('id', product.id);
+        product.product_image = imageUrl;
+      }
+
+      lastProduct = product;
     }
 
     res.status(201).json({
       message: 'Product created successfully',
       product: {
-        _id: product.id,
-        product_name: product.product_name ?? product.name,
-        brand_name: product.brand_name,
-        product_image: product.product_image,
+        _id: lastProduct.id,
+        product_name: lastProduct.product_name ?? lastProduct.name,
+        brand_name: lastProduct.brand_name,
+        product_image: lastProduct.product_image,
       },
     });
   } catch (err) {
@@ -319,13 +337,13 @@ app.post('/pdf/generate', async (req, res) => {
 
       doc.rect(0, 0, 595, 842).fill('white');
       doc.fontSize(20).fillColor('black');
-      doc.text('Brand: ' + (p.brand_name || ''), margin, margin + 20, {
+      // Name first, then brand (as requested)
+      doc.text('Name: ' + (p.product_name || p.name || ''), margin, margin + 20, {
         width: contentWidth,
         align: 'center',
       });
       doc.fontSize(18);
-      // Use product_name if present, otherwise fall back to name, then empty string
-      doc.text('Name: ' + (p.product_name || p.name || ''), margin, margin + 60, {
+      doc.text('Brand: ' + (p.brand_name || ''), margin, margin + 60, {
         width: contentWidth,
         align: 'center',
       });

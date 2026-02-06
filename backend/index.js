@@ -133,7 +133,7 @@ app.get('/brands/:id/products', async (req, res) => {
 
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_name, brand_name, product_image')
+      .select('id, name, product_name, brand_name, product_image')
       .eq('brand_id', brandId);
 
     if (error) {
@@ -143,7 +143,7 @@ app.get('/brands/:id/products', async (req, res) => {
 
     const out = (data || []).map((p) => ({
       _id: p.id,
-      product_name: p.product_name,
+      product_name: p.product_name ?? p.name,
       brand_name: p.brand_name,
       product_image: p.product_image || '',
     }));
@@ -200,18 +200,26 @@ app.post('/products', (req, res, next) => {
       brand = newBrand;
     }
 
-    // Resize and upload image
+    // Resize and upload image (fallback to original if Sharp fails)
+    if (!req.file.buffer || req.file.buffer.length === 0) {
+      return res.status(400).json({ error: 'Image file is empty or corrupted' });
+    }
     const ext = path.extname(req.file.originalname) || '.jpg';
-    const fileName = uniqueFilename(ext);
+    const fileName = uniqueFilename(ext.endsWith('.jpg') || ext.endsWith('.jpeg') ? ext : '.jpg');
 
-    const resized = await sharp(req.file.buffer)
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 90 })
-      .toBuffer();
+    let bufferToUpload = req.file.buffer;
+    try {
+      bufferToUpload = await sharp(req.file.buffer)
+        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+    } catch (sharpErr) {
+      // Use original buffer if resize fails (e.g. corrupt or minimal JPEG)
+    }
 
     const { error: uploadErr } = await supabase.storage
       .from(IMAGES_BUCKET)
-      .upload(fileName, resized, { contentType: 'image/jpeg', upsert: false });
+      .upload(fileName, bufferToUpload, { contentType: 'image/jpeg', upsert: false });
 
     if (uploadErr) {
       console.error('Image upload:', uploadErr.message);
@@ -223,31 +231,36 @@ app.post('/products', (req, res, next) => {
       .getPublicUrl(fileName);
     const imageUrl = urlData.publicUrl;
 
-    // Create product
+    // Create product (Supabase table has "name" column for product name)
+    const productRow = {
+      name: productName || 'Untitled',
+      brand_name: brandName,
+      brand_id: brand.id,
+      product_image: imageUrl,
+    };
     const { data: product, error: productErr } = await supabase
       .from('products')
-      .insert([
-        {
-          product_name: productName,
-          brand_name: brandName,
-          brand_id: brand.id,
-          product_image: imageUrl,
-        },
-      ])
-      .select('id, product_name, brand_name, product_image')
+      .insert([productRow])
+      .select('id, name, product_name, brand_name, product_image')
       .single();
 
     if (productErr) {
       console.error('Product insert:', productErr.message);
       await supabase.storage.from(IMAGES_BUCKET).remove([fileName]);
-      return res.status(500).json({ error: 'Failed to create product' });
+      return res.status(500).json({ error: 'Failed to create product', detail: productErr.message });
+    }
+
+    // Ensure product_image is saved (some schemas need explicit update)
+    if (!product.product_image && imageUrl) {
+      await supabase.from('products').update({ product_image: imageUrl }).eq('id', product.id);
+      product.product_image = imageUrl;
     }
 
     res.status(201).json({
       message: 'Product created successfully',
       product: {
         _id: product.id,
-        product_name: product.product_name,
+        product_name: product.product_name ?? product.name,
         brand_name: product.brand_name,
         product_image: product.product_image,
       },
@@ -268,7 +281,7 @@ app.post('/pdf/generate', async (req, res) => {
 
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, product_name, brand_name, product_image')
+      .select('id, name, product_name, brand_name, product_image')
       .in('id', product_ids);
 
     if (error || !products?.length) {
@@ -311,21 +324,36 @@ app.post('/pdf/generate', async (req, res) => {
         align: 'center',
       });
       doc.fontSize(18);
-      doc.text('Name: ' + (p.product_name || ''), margin, margin + 60, {
+      // Use product_name if present, otherwise fall back to name, then empty string
+      doc.text('Name: ' + (p.product_name || p.name || ''), margin, margin + 60, {
         width: contentWidth,
         align: 'center',
       });
 
-      if (p.product_image) {
+      const imgUrl = p.product_image || p.product_image_url || p.image_url;
+      if (imgUrl) {
         try {
-          const imgRes = await fetch(p.product_image);
+          let imgBuf = null;
+          const imgRes = await fetch(imgUrl);
           if (imgRes.ok) {
-            const buf = Buffer.from(await imgRes.arrayBuffer());
-            doc.image(buf, margin, margin + 100, {
+            imgBuf = Buffer.from(await imgRes.arrayBuffer());
+          }
+          if (!imgBuf?.length && imgUrl.includes(IMAGES_BUCKET)) {
+            const match = imgUrl.match(/\/uploads\/([^?#]+)/) || imgUrl.match(/uploads%2F([^?#&]+)/);
+            const storagePath = match ? decodeURIComponent(match[1]) : imgUrl.split('/').pop();
+            const { data: dlData, error: dlErr } = await supabase.storage
+              .from(IMAGES_BUCKET)
+              .download(storagePath);
+            if (!dlErr && dlData) imgBuf = Buffer.from(await dlData.arrayBuffer());
+          }
+          if (imgBuf?.length) {
+            doc.image(imgBuf, margin, margin + 100, {
               fit: [contentWidth, imageAreaHeight],
               align: 'center',
               valign: 'center',
             });
+          } else {
+            doc.text('Image not available', margin, margin + 100);
           }
         } catch (e) {
           doc.text('Image not available', margin, margin + 100);
